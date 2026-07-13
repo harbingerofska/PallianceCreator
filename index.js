@@ -59,7 +59,6 @@ const ARCHIVE_CATEGORY_ID = process.env.ARCHIVE_CATEGORY_ID;
 if (
   !TOKEN ||
   !ALIVE_ROLE ||
-  !ADMIN_ROLE_IDS.length ||
   !CONTROL_CHANNEL ||
   !ALLIANCE_CATEGORY_ID
 ) {
@@ -84,6 +83,7 @@ const commands = [
 const rest = new REST({
   version: '10'
 }).setToken(TOKEN);
+
 
 
 client.once(Events.ClientReady, async () => {
@@ -121,7 +121,6 @@ client.on(
 
     if (!interaction.isChatInputCommand()) return;
 
-
     if (interaction.commandName !== 'setup') return;
 
 
@@ -152,12 +151,9 @@ client.on(
 
 
     await interaction.reply({
-
       content:
         "Create your private alliance channel below.",
-
       components: [row]
-
     });
 
   }
@@ -182,7 +178,11 @@ client.on(
     const member = interaction.member;
 
 
-    if (!member.roles.cache.some(role => role.id === ALIVE_ROLE)) {
+    if (
+      !member.roles.cache.some(role =>
+        role.id === ALIVE_ROLE
+      )
+    ) {
 
       return interaction.reply({
 
@@ -204,6 +204,28 @@ client.on(
 
 
 
+      const existing =
+        interaction.guild.channels.cache.find(channel =>
+          channel.parentId === ALLIANCE_CATEGORY_ID &&
+          channel.topic === `OWNER:${interaction.user.id}`
+        );
+
+
+      if (existing) {
+
+        return interaction.followUp({
+
+          content:
+            `You already have an alliance channel: ${existing}`,
+
+          ephemeral: true
+
+        });
+
+      }
+
+
+
       const channel =
         await interaction.guild.channels.create({
 
@@ -211,6 +233,10 @@ client.on(
             `alliance-${interaction.user.username}`
               .toLowerCase()
               .replace(/[^a-z0-9-]/g, ''),
+
+
+          topic:
+            `OWNER:${interaction.user.id}`,
 
 
           type:
@@ -223,7 +249,6 @@ client.on(
 
           permissionOverwrites: [
 
-            // Hide from everyone
             {
               id:
                 interaction.guild.roles.everyone.id,
@@ -231,10 +256,10 @@ client.on(
               deny: [
                 PermissionFlagsBits.ViewChannel
               ]
+
             },
 
 
-            // Alliance creator
             {
               id:
                 interaction.user.id,
@@ -250,6 +275,7 @@ client.on(
                 PermissionFlagsBits.ManageMessages
 
               ]
+
             }
 
           ]
@@ -259,70 +285,30 @@ client.on(
 
 
       // =========================
-      // ADMIN ROLE ACCESS
-      // =========================
-
-      for (const roleId of ADMIN_ROLE_IDS) {
-
-        try {
-
-          await channel.permissionOverwrites.edit(
-            roleId,
-            {
-
-              ViewChannel: true,
-
-              SendMessages: true,
-
-              ReadMessageHistory: true,
-
-              ManageMessages: true
-
-            }
-          );
-
-        } catch (err) {
-
-          console.error(
-            `Failed adding admin role ${roleId}:`,
-            err.message
-          );
-
-        }
-
-      }
-
-
-
-      // =========================
-      // READ ONLY ROLE ACCESS
+      // READ ONLY ROLE ACCESS ONLY
       // =========================
 
       for (const roleId of READONLY_ROLE_IDS) {
 
-        try {
+        await channel.permissionOverwrites.edit(
+          roleId,
+          {
 
-          await channel.permissionOverwrites.edit(
-            roleId,
-            {
+            ViewChannel: true,
 
-              ViewChannel: true,
+            SendMessages: false,
 
-              SendMessages: false,
+            ReadMessageHistory: true
 
-              ReadMessageHistory: true
-
-            }
-          );
-
-        } catch (err) {
+          }
+        ).catch(err => {
 
           console.error(
-            `Failed adding readonly role ${roleId}:`,
+            `Readonly role failed ${roleId}:`,
             err.message
           );
 
-        }
+        });
 
       }
 
@@ -369,6 +355,8 @@ client.on(
   }
 );
 
+
+
 // =========================
 // ADD ALIVE MEMBERS BY MENTION
 // =========================
@@ -377,28 +365,21 @@ client.on(
   Events.MessageCreate,
   async message => {
 
-
     if (message.author.bot) return;
 
 
     const channel = message.channel;
 
 
-    // Only alliance channels
     if (
       channel.parentId !== ALLIANCE_CATEGORY_ID
     ) return;
 
 
 
-    // Only owner can add users
-    const creatorPermission =
-      channel.permissionOverwrites.cache.get(
-        message.author.id
-      );
-
-
-    if (!creatorPermission) return;
+    if (
+      channel.topic !== `OWNER:${message.author.id}`
+    ) return;
 
 
 
@@ -414,8 +395,11 @@ client.on(
 
 
       if (
-  member.roles.cache.some(role => role.id === ALIVE_ROLE)
-) {
+        member.roles.cache.some(role =>
+          role.id === ALIVE_ROLE
+        )
+      ) {
+
 
         await channel.permissionOverwrites.edit(
           member.id,
@@ -428,6 +412,7 @@ client.on(
             ReadMessageHistory: true
 
           }
+
         );
 
       }
@@ -448,22 +433,20 @@ client.on(
   async (oldMember, newMember) => {
 
 
-  const lostAlive =
-  oldMember.roles.cache.some(role => role.id === ALIVE_ROLE) &&
-  !newMember.roles.cache.some(role => role.id === ALIVE_ROLE);
-
+    const lostAlive =
+      oldMember.roles.cache.some(role =>
+        role.id === ALIVE_ROLE
+      ) &&
+      !newMember.roles.cache.some(role =>
+        role.id === ALIVE_ROLE
+      );
 
 
     if (!lostAlive) return;
 
 
 
-    const channels =
-      newMember.guild.channels.cache;
-
-
-
-    for (const channel of channels.values()) {
+    for (const channel of newMember.guild.channels.cache.values()) {
 
 
       if (
@@ -478,11 +461,8 @@ client.on(
 
 
 
-      // Archive if owner
       if (
-        channel.name.includes(
-          newMember.user.username.toLowerCase()
-        )
+        channel.topic === `OWNER:${newMember.id}`
       ) {
 
 
