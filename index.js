@@ -119,22 +119,29 @@ client.on(Events.InteractionCreate, async (interaction) => {
     // Add creator
     await thread.members.add(interaction.user.id);
 
-    // Add all admins
-    const admins = interaction.guild.members.cache.filter(m =>
-      m.roles.cache.some(r => ADMIN_ROLE_IDS.includes(r.id))
-    );
+// Fetch all members so role filtering works
+const guildMembers = await interaction.guild.members.fetch();
 
-    for (const admin of admins.values()) {
-      await thread.members.add(admin.id).catch(() => {});
-    }
+// Add all admins
+const admins = guildMembers.filter(m =>
+  m.roles.cache.some(r => ADMIN_ROLE_IDS.includes(r.id))
+);
+
+for (const admin of admins.values()) {
+  await thread.members.add(admin.id).catch(err => {
+    console.error(`Failed to add admin ${admin.user.tag}:`, err);
+  });
+}
 
 // Add all read-only members
-const readonlyMembers = interaction.guild.members.cache.filter(m =>
+const readonlyMembers = guildMembers.filter(m =>
   m.roles.cache.some(r => READONLY_ROLE_IDS.includes(r.id))
 );
 
 for (const member of readonlyMembers.values()) {
-  await thread.members.add(member.id).catch(() => {});
+  await thread.members.add(member.id).catch(err => {
+    console.error(`Failed to add readonly ${member.user.tag}:`, err);
+  });
 }
 
     // Follow up after deferring
