@@ -25,6 +25,8 @@ const TOKEN = process.env.TOKEN;
 const ALIVE_ROLE = process.env.ALIVE_ROLE_ID;
 const ADMIN_ROLE_IDS = process.env.ADMIN_ROLE_IDS
   ? process.env.ADMIN_ROLE_IDS.split(',') : [];
+  const READONLY_ROLE_IDS = process.env.READONLY_ROLE_IDS
+  ? process.env.READONLY_ROLE_IDS.split(','): [];
 const CONTROL_CHANNEL = process.env.CONTROL_CHANNEL_ID;
 
 // Warn if missing env
@@ -125,6 +127,15 @@ client.on(Events.InteractionCreate, async (interaction) => {
     for (const admin of admins.values()) {
       await thread.members.add(admin.id).catch(() => {});
     }
+
+// Add all read-only members
+const readonlyMembers = interaction.guild.members.cache.filter(m =>
+  m.roles.cache.some(r => READONLY_ROLE_IDS.includes(r.id))
+);
+
+for (const member of readonlyMembers.values()) {
+  await thread.members.add(member.id).catch(() => {});
+}
 
     // Follow up after deferring
     await interaction.followUp({
