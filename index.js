@@ -173,7 +173,6 @@ client.on(
   Events.InteractionCreate,
   async interaction => {
 
-
     if (!interaction.isButton()) return;
 
     if (interaction.customId !== 'create_alliance')
@@ -183,7 +182,7 @@ client.on(
     const member = interaction.member;
 
 
-    if (!member.roles.cache.has(ALIVE_ROLE)) {
+    if (!member.roles.cache.some(role => role.id === ALIVE_ROLE)) {
 
       return interaction.reply({
 
@@ -224,6 +223,7 @@ client.on(
 
           permissionOverwrites: [
 
+            // Hide from everyone
             {
               id:
                 interaction.guild.roles.everyone.id,
@@ -234,6 +234,7 @@ client.on(
             },
 
 
+            // Alliance creator
             {
               id:
                 interaction.user.id,
@@ -257,70 +258,71 @@ client.on(
 
 
 
-      const members =
-        await interaction.guild.members.fetch();
-
-
-
       // =========================
-      // ADMINS
+      // ADMIN ROLE ACCESS
       // =========================
 
-      const admins =
-        members.filter(member =>
-          member.roles.cache.some(role =>
-            ADMIN_ROLE_IDS.includes(role.id)
-          )
-        );
+      for (const roleId of ADMIN_ROLE_IDS) {
 
+        try {
 
-      for (const admin of admins.values()) {
+          await channel.permissionOverwrites.edit(
+            roleId,
+            {
 
-        await channel.permissionOverwrites.edit(
-          admin.id,
-          {
+              ViewChannel: true,
 
-            ViewChannel: true,
+              SendMessages: true,
 
-            SendMessages: true,
+              ReadMessageHistory: true,
 
-            ReadMessageHistory: true,
+              ManageMessages: true
 
-            ManageMessages: true
+            }
+          );
 
-          }
-        );
+        } catch (err) {
+
+          console.error(
+            `Failed adding admin role ${roleId}:`,
+            err.message
+          );
+
+        }
 
       }
 
 
 
       // =========================
-      // READ ONLY
+      // READ ONLY ROLE ACCESS
       // =========================
 
-      const viewers =
-        members.filter(member =>
-          member.roles.cache.some(role =>
-            READONLY_ROLE_IDS.includes(role.id)
-          )
-        );
+      for (const roleId of READONLY_ROLE_IDS) {
 
+        try {
 
-      for (const viewer of viewers.values()) {
+          await channel.permissionOverwrites.edit(
+            roleId,
+            {
 
-        await channel.permissionOverwrites.edit(
-          viewer.id,
-          {
+              ViewChannel: true,
 
-            ViewChannel: true,
+              SendMessages: false,
 
-            SendMessages: false,
+              ReadMessageHistory: true
 
-            ReadMessageHistory: true
+            }
+          );
 
-          }
-        );
+        } catch (err) {
+
+          console.error(
+            `Failed adding readonly role ${roleId}:`,
+            err.message
+          );
+
+        }
 
       }
 
@@ -367,8 +369,6 @@ client.on(
   }
 );
 
-
-
 // =========================
 // ADD ALIVE MEMBERS BY MENTION
 // =========================
@@ -414,8 +414,8 @@ client.on(
 
 
       if (
-        member.roles.cache.has(ALIVE_ROLE)
-      ) {
+  member.roles.cache.some(role => role.id === ALIVE_ROLE)
+) {
 
         await channel.permissionOverwrites.edit(
           member.id,
@@ -448,9 +448,9 @@ client.on(
   async (oldMember, newMember) => {
 
 
-    const lostAlive =
-      oldMember.roles.cache.has(ALIVE_ROLE) &&
-      !newMember.roles.cache.has(ALIVE_ROLE);
+  const lostAlive =
+  oldMember.roles.cache.some(role => role.id === ALIVE_ROLE) &&
+  !newMember.roles.cache.some(role => role.id === ALIVE_ROLE);
 
 
 
